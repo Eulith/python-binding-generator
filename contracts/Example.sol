@@ -3,6 +3,13 @@ pragma solidity ^0.8.0;
 
 contract Example {
     uint public count;
+    bytes32 someStuff;
+    uint256 moreStuff;
+
+    constructor(bytes32 stuff, uint256 extraStuff) payable  {
+        someStuff = stuff;
+        moreStuff = extraStuff;
+    }
 
     // Function to get the current count
     function get() public view returns (uint) {

@@ -25,6 +25,7 @@ class ContractAddressNotSet(Exception):
             'bool': 'bool',
             'bytes1': 'bytes',
             'bytes': 'bytes',
+            'bytes32': 'bytes',
             'int8': 'int',
             'tuple': 'tuple',
             'uint8': 'int'
@@ -68,6 +69,7 @@ class ContractAddressNotSet(Exception):
             file_name = f"{re.sub(r'(?<!^)(?=[A-Z])', '_', contract_name).lower()}.py"
             path = os.path.join(output_dir, file_name)
             abi = val.get('abi')
+            has_constructor = 'constructor' in [elem.get('type') for elem in abi]
             byte_code = val.get('bin')
             code = self.template
 
@@ -78,21 +80,33 @@ class ContractAddressNotSet(Exception):
         self.abi = {abi}
         self.bytecode = '{byte_code}'
         self.w3 = web3
-    
+            """
+
+            if not has_constructor:
+                code += """
     def deploy(self):
         contract = self.w3.eth.contract(abi=self.abi, bytecode=self.bytecode)
         tx_hash = contract.constructor().transact()
         tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
         self.address = tx_receipt.contractAddress
-            """
+        """
 
             for elem in abi:
                 ty = elem.get('type')
-                if ty == 'function':
+                inputs = elem.get('inputs', [])
+                pass_into_method, statement_args = ContractBindingGenerator.inputs_to_argument_string(inputs)
+
+                if ty == 'constructor':
+                    code += f"""
+    def deploy({statement_args}):
+        contract = self.w3.eth.contract(abi=self.abi, bytecode=self.bytecode)
+        tx_hash = contract.constructor({pass_into_method}).transact()
+        tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+        self.address = tx_receipt.contractAddress
+        """
+                elif ty == 'function':
                     func_name = elem.get('name')
                     outputs = elem.get('outputs', [])
-                    inputs = elem.get('inputs', [])
-                    pass_into_method, statement_args = ContractBindingGenerator.inputs_to_argument_string(inputs)
                     return_type = ContractBindingGenerator.outputs_to_return_type(outputs)
                     return_type_string = ' -> Dict'
                     return_stmt = f"return c.functions.{func_name}({pass_into_method}).buildTransaction()"
